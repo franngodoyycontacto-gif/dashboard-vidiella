@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Cargar Pedido — Mercado Vidiella</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { font-family: 'Lato', sans-serif; background: #0f1f12; color: #e8f0e0; min-height: 100vh; padding: 16px; }
+
+  .header { display: flex; align-items: center; gap: 12px; padding: 12px 0 20px; border-bottom: 1px solid #2a4a2d; margin-bottom: 20px; }
+  .header h1 { font-size: 18px; color: white; font-weight: 700; }
+  .header p { font-size: 11px; color: #6a9a5a; }
+
+  .card { background: #1a3a1f; border-radius: 12px; padding: 16px; margin-bottom: 14px; border: 1px solid #2a4a2d; }
+  .card-title { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #6a9a5a; margin-bottom: 14px; }
+
+  label { display: block; font-size: 12px; color: #8fbc6a; margin-bottom: 6px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+
+  input, select { width: 100%; background: #0f1f12; border: 1px solid #2a4a2d; border-radius: 8px; padding: 12px 14px; font-size: 15px; color: white; font-family: 'Lato', sans-serif; outline: none; margin-bottom: 14px; -webkit-appearance: none; }
+  input:focus, select:focus { border-color: #4a7c3f; }
+  input::placeholder { color: #4a6a4a; }
+  select option { background: #1a3a1f; }
+
+  .campo-grupo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .campo-grupo input { margin-bottom: 0; }
+
+  /* ITEMS DE PEDIDO */
+  .item-pedido { background: #0f1f12; border-radius: 8px; padding: 12px; margin-bottom: 10px; border: 1px solid #2a4a2d; position: relative; }
+  .item-pedido .eliminar { position: absolute; top: 10px; right: 10px; background: none; border: none; color: #ff6b6b; font-size: 18px; cursor: pointer; padding: 4px; }
+  .item-pedido label { margin-bottom: 4px; }
+  .item-pedido input, .item-pedido select { margin-bottom: 8px; padding: 10px 12px; font-size: 14px; }
+  .item-pedido input:last-child, .item-pedido select:last-child { margin-bottom: 0; }
+  .subtotal-item { font-size: 13px; color: #4aff6a; font-weight: 700; text-align: right; margin-top: 4px; }
+
+  /* BOTONES */
+  .btn-agregar { width: 100%; background: #0f1f12; border: 2px dashed #2a4a2d; border-radius: 8px; padding: 12px; color: #6a9a5a; font-size: 14px; cursor: pointer; font-family: 'Lato', sans-serif; margin-bottom: 4px; }
+  .btn-agregar:hover { border-color: #4a7c3f; color: #8fbc6a; }
+
+  .total-box { background: #0f1f12; border-radius: 8px; padding: 14px; margin-top: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #2a4a2d; }
+  .total-label { font-size: 13px; color: #6a9a5a; text-transform: uppercase; letter-spacing: 1px; }
+  .total-num { font-size: 24px; font-weight: 700; color: #4aff6a; }
+
+  .btn-guardar { width: 100%; background: #4a7c3f; border: none; border-radius: 10px; padding: 16px; color: white; font-size: 16px; font-weight: 700; cursor: pointer; font-family: 'Lato', sans-serif; margin-top: 6px; }
+  .btn-guardar:hover { background: #5a9a4f; }
+  .btn-guardar:disabled { background: #2a4a2d; color: #4a6a4a; cursor: not-allowed; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #4a7c3f; color: white; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; opacity: 0; transition: opacity 0.3s; z-index: 999; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+  .toast.error { background: #c0392b; }
+
+  /* CLIENTE ENCONTRADO */
+  .cliente-encontrado { background: #1a4a2a; border: 1px solid #4aff6a; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; display: none; }
+  .cliente-encontrado p { font-size: 13px; color: #4aff6a; }
+  .cliente-encontrado span { color: white; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="font-size:28px;">🌿</div>
+  <div>
+    <h1>Cargar Pedido</h1>
+    <p>Mercado Vidiella — Local</p>
+  </div>
+</div>
+
+<!-- CLIENTE -->
+<div class="card">
+  <div class="card-title">👤 Cliente</div>
+
+  <label>Nombre *</label>
+  <input type="text" id="nombre" placeholder="Nombre del cliente" autocomplete="off" oninput="buscarCliente()">
+
+  <div class="cliente-encontrado" id="cliente-encontrado">
+    <p>✅ Cliente registrado: <span id="cliente-info"></span></p>
+  </div>
+
+  <label>Teléfono (opcional)</label>
+  <input type="tel" id="telefono" placeholder="09X XXX XXX" autocomplete="off">
+</div>
+
+<!-- PRODUCTOS -->
+<div class="card">
+  <div class="card-title">🛒 Productos</div>
+
+  <div id="items-container"></div>
+
+  <button class="btn-agregar" onclick="agregarItem()">+ Agregar producto</button>
+
+  <div class="total-box">
+    <span class="total-label">Total</span>
+    <span class="total-num" id="total-display">$0</span>
+  </div>
+</div>
+
+<!-- GUARDAR -->
+<button class="btn-guardar" id="btn-guardar" onclick="guardarPedido()">
+  💾 Guardar pedido en el sistema
+</button>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://ggtaduaoremvvkvgandy.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_o661KMq1t9_Sz9NKsrUvaA_R_V3J84y';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let productos = [];
+let clienteEncontrado = null;
+let itemCount = 0;
+
+// Cargar productos al inicio
+async function cargarProductos() {
+  const { data } = await db.from('productos').select('*').eq('disponible', true).order('nombre');
+  productos = data || [];
+  agregarItem(); // Agregar primer item vacío
+}
+
+// Mostrar toast
+function showToast(msg, error = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (error ? ' error' : '');
+  setTimeout(() => t.className = 'toast', 3000);
+}
+
+// Buscar cliente por nombre
+let buscarTimeout;
+async function buscarCliente() {
+  clearTimeout(buscarTimeout);
+  buscarTimeout = setTimeout(async () => {
+    const nombre = document.getElementById('nombre').value.trim();
+    const div = document.getElementById('cliente-encontrado');
+    const info = document.getElementById('cliente-info');
+
+    if (nombre.length < 3) {
+      div.style.display = 'none';
+      clienteEncontrado = null;
+      return;
+    }
+
+    const { data } = await db.from('clientes')
+      .select('*')
+      .ilike('nombre', `%${nombre}%`)
+      .limit(1)
+      .maybeSingle();
+
+    if (data) {
+      clienteEncontrado = data;
+      info.textContent = `${data.nombre} · ${data.telefono || 'sin teléfono'}`;
+      div.style.display = 'block';
+      if (data.telefono) document.getElementById('telefono').value = data.telefono;
+    } else {
+      div.style.display = 'none';
+      clienteEncontrado = null;
+    }
+  }, 500);
+}
+
+// Agregar item de producto
+function agregarItem() {
+  itemCount++;
+  const id = `item-${itemCount}`;
+  const opciones = productos.map(p =>
+    `<option value="${p.id}" data-precio="${p.precio_kg}" data-unidad="${p.unidad}">${p.nombre} ($${p.precio_kg}/${p.unidad})</option>`
+  ).join('');
+
+  const div = document.createElement('div');
+  div.className = 'item-pedido';
+  div.id = id;
+  div.innerHTML = `
+    <button class="eliminar" onclick="eliminarItem('${id}')">✕</button>
+    <label>Producto</label>
+    <select onchange="actualizarSubtotal('${id}')">
+      <option value="">-- Elegí un producto --</option>
+      ${opciones}
+    </select>
+    <div class="campo-grupo">
+      <div>
+        <label>Cantidad</label>
+        <input type="number" placeholder="Ej: 2" step="0.1" min="0" oninput="actualizarSubtotal('${id}')">
+      </div>
+      <div>
+        <label>Precio/kg</label>
+        <input type="number" placeholder="$" step="1" min="0" oninput="actualizarSubtotal('${id}')">
+      </div>
+    </div>
+    <div class="subtotal-item" id="sub-${id}">$0</div>
+  `;
+
+  // Cuando se elige producto, llenar precio automáticamente
+  div.querySelector('select').addEventListener('change', function() {
+    const opt = this.options[this.selectedIndex];
+    const precio = opt.getAttribute('data-precio');
+    if (precio) {
+      div.querySelectorAll('input')[1].value = precio;
+    }
+    actualizarSubtotal(id);
+  });
+
+  document.getElementById('items-container').appendChild(div);
+  actualizarTotal();
+}
+
+// Eliminar item
+function eliminarItem(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+  actualizarTotal();
+}
+
+// Actualizar subtotal de un item
+function actualizarSubtotal(id) {
+  const div = document.getElementById(id);
+  if (!div) return;
+  const inputs = div.querySelectorAll('input');
+  const cantidad = parseFloat(inputs[0].value) || 0;
+  const precio = parseFloat(inputs[1].value) || 0;
+  const subtotal = cantidad * precio;
+  document.getElementById(`sub-${id}`).textContent = subtotal > 0 ? `$${Math.round(subtotal)}` : '$0';
+  actualizarTotal();
+}
+
+// Calcular total general
+function actualizarTotal() {
+  let total = 0;
+  document.querySelectorAll('.item-pedido').forEach(div => {
+    const inputs = div.querySelectorAll('input');
+    const cantidad = parseFloat(inputs[0]?.value) || 0;
+    const precio = parseFloat(inputs[1]?.value) || 0;
+    total += cantidad * precio;
+  });
+  document.getElementById('total-display').textContent = `$${Math.round(total)}`;
+  return total;
+}
+
+// Guardar pedido en Supabase
+async function guardarPedido() {
+  const nombre = document.getElementById('nombre').value.trim();
+  const telefono = document.getElementById('telefono').value.trim();
+
+  if (!nombre) {
+    showToast('⚠️ Ingresá el nombre del cliente', true);
+    return;
+  }
+
+  // Recolectar items
+  const items = [];
+  document.querySelectorAll('.item-pedido').forEach(div => {
+    const select = div.querySelector('select');
+    const inputs = div.querySelectorAll('input');
+    const productoId = select.value;
+    const cantidad = parseFloat(inputs[0]?.value) || 0;
+    const precio = parseFloat(inputs[1]?.value) || 0;
+    if (productoId && cantidad > 0 && precio > 0) {
+      items.push({ producto_id: parseInt(productoId), cantidad, precio_unit: precio });
+    }
+  });
+
+  if (items.length === 0) {
+    showToast('⚠️ Agregá al menos un producto', true);
+    return;
+  }
+
+  const total = actualizarTotal();
+  const btn = document.getElementById('btn-guardar');
+  btn.disabled = true;
+  btn.textContent = '⏳ Guardando...';
+
+  try {
+    let clienteId = clienteEncontrado?.id;
+
+    // Si no encontramos el cliente, crearlo
+    if (!clienteId) {
+      const { data: nuevoCliente } = await db.from('clientes')
+        .insert([{ nombre, telefono: telefono || null, activo: true }])
+        .select()
+        .single();
+      clienteId = nuevoCliente?.id;
+    }
+
+    // Crear el pedido
+    const { data: pedido } = await db.from('pedidos')
+      .insert([{ cliente_id: clienteId, total, canal: 'local', estado: 'completado' }])
+      .select()
+      .single();
+
+    // Insertar items del pedido
+    if (pedido && items.length > 0) {
+      const detalles = items.map(item => ({
+        pedido_id: pedido.id,
+        producto_id: item.producto_id,
+        cantidad: item.cantidad,
+        precio_unit: item.precio_unit
+      }));
+      await db.from('pedido_items').insert(detalles);
+    }
+
+    // Actualizar última compra del cliente
+    await db.from('clientes')
+      .update({ ultima_compra_en: new Date().toISOString() })
+      .eq('id', clienteId);
+
+    showToast('✅ Pedido guardado correctamente');
+
+    // Limpiar formulario
+    setTimeout(() => {
+      document.getElementById('nombre').value = '';
+      document.getElementById('telefono').value = '';
+      document.getElementById('cliente-encontrado').style.display = 'none';
+      document.getElementById('items-container').innerHTML = '';
+      document.getElementById('total-display').textContent = '$0';
+      clienteEncontrado = null;
+      itemCount = 0;
+      agregarItem();
+    }, 1500);
+
+  } catch (error) {
+    console.error(error);
+    showToast('❌ Error al guardar. Intentá de nuevo.', true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 Guardar pedido en el sistema';
+  }
+}
+
+// Iniciar
+cargarProductos();
+</script>
+
+</body>
+</html>
